@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PS4 Tracker with Persistent Save File</title>
+  <style>
+    body {
+      background-color: #121212;
+      font-family: 'Segoe UI', sans-serif;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 10px;
+    }
+    h1 {
+      text-align: center;
+      color: #00ffcc;
+      text-shadow: 0 0 10px #00ffcc;
+      margin-bottom: 20px;
+      font-size: 28px;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      justify-items: center;
+    }
+    .ps4-box {
+      background-color: #1f1f1f;
+      border: 3px solid #00ffcc; /* default, overridden inline */
+      border-radius: 12px;
+      padding: 16px;
+      width: 95%;
+      max-width: 380px;
+      box-shadow: 0 0 15px #00ffcc55; /* default, overridden inline */
+      font-size: 16px;
+    }
+    /* h2 colors will be inline */
+    input,
+    button {
+      padding: 8px 10px;
+      font-size: 16px;
+      margin: 4px 2px;
+      border: none;
+      border-radius: 6px;
+    }
+    input {
+      background: #333;
+      color: white;
+      width: 120px;
+    }
+    button {
+      background-color: #00ffcc;
+      color: #000;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #00e6b3;
+    }
+    .totals {
+      margin-top: 12px;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .totals span {
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎮 PS4 Tracker (14 Consoles + Persistent Save File)</h1>
+  <div class="grid-container" id="grid"></div>
+  <script>
+    const ps4Count = 14;
+    const ratePerHour = 1000;
+    const grid = document.getElementById("grid");
+    const ps4Data = {};
+    const ps4Files = JSON.parse(localStorage.getItem('ps4Files')) || {};
+
+    // Neon color palette for each PS4 box
+    const colors = [
+      '#00ffcc', // cyan
+      '#ff007f', // pink
+      '#00ff00', // bright green
+      '#ffcc00', // yellow
+      '#ff6600', // orange
+      '#ff00ff', // magenta
+      '#00ffff', // aqua
+      '#ff4444', // red
+      '#66ff66', // light green
+      '#6699ff', // light blue
+      '#cc66ff', // purple
+      '#ff9966', // peach
+      '#66ffff', // turquoise
+      '#ff66cc', // rose
+    ];
+
+    function formatDateTime(date) {
+      return date.getFullYear() + '-' +
+        String(date.getMonth() + 1).padStart(2, '0') + '-' +
+        String(date.getDate()).padStart(2, '0') + '_' +
+        String(date.getHours()).padStart(2, '0') + '-' +
+        String(date.getMinutes()).padStart(2, '0');
+    }
+
+    for (let i = 1; i <= 15; i++) {
+      if (i <= ps4Count) {
+        const color = colors[(i - 1) % colors.length];
+        grid.innerHTML += `
+          <div class="ps4-box" id="ps4-${i}" style="
+            border-color: ${color};
+            box-shadow: 0 0 15px ${color}55;
+          ">
+            <h2 style="color: ${color}; text-shadow: 0 0 4px ${color};">PS4 #${i}</h2>
+            <button onclick="startTimer(${i})">▶ Start</button>
+            <button onclick="stopTimer(${i})">⏹ Stop</button>
+            <button onclick="resetTime(${i})">🔄 Reset Time</button><br>
+            <input type="number" id="foodInput-${i}" placeholder="Food (IQD)">
+            <button onclick="addFood(${i})">➕ Add Food</button>
+            <button onclick="resetFood(${i})">🗑 Reset Food</button><br>
+            <button onclick="saveDataToFile(${i})">💾 Save Data</button>
+            <div class="totals">
+              ⏱ Time: <span id="elapsedTime-${i}">0h 0m 0s</span><br>
+              💸 Time Cost: <span id="timeCost-${i}">0</span> IQD<br>
+              🍔 Food Cost: <span id="foodTotal-${i}">0</span> IQD<br>
+              💰 Total: <span id="totalIncome-${i}">0</span> IQD
+            </div>
+          </div>
+        `;
+      } else {
+        grid.innerHTML += `<div class="ps4-box" style="opacity: 0.1;"></div>`;
+      }
+
+      const saved = JSON.parse(localStorage.getItem(`ps4-${i}`)) || {
+        startTime: null,
+        elapsedTime: 0,
+        foodTotal: 0,
+      };
+
+      ps4Data[i] = {
+        startTime: saved.startTime,
+        elapsedTime: saved.elapsedTime,
+        timer: null,
+        foodTotal: saved.foodTotal,
+      };
+
+      if (ps4Data[i].startTime && !ps4Data[i].timer) {
+        startTimer(i);
+      } else {
+        updateDisplay(i);
+      }
+    }
+
+    function updateDisplay(i) {
+      const data = ps4Data[i];
+      let currentElapsed = data.timer ? Date.now() - data.startTime : data.elapsedTime;
+
+      let totalSeconds = Math.floor(currentElapsed / 1000);
+      let hours = Math.floor(totalSeconds / 3600);
+      let minutes = Math.floor((totalSeconds % 3600) / 60);
+      let seconds = totalSeconds % 60;
+
+      document.getElementById(`elapsedTime-${i}`).textContent = `${hours}h ${minutes}m ${seconds}s`;
+
+      let hoursDecimal = currentElapsed / (1000 * 60 * 60);
+      let timeCost = Math.floor(hoursDecimal * ratePerHour);
+      document.getElementById(`timeCost-${i}`).textContent = timeCost;
+      document.getElementById(`foodTotal-${i}`).textContent = data.foodTotal.toFixed(0);
+      document.getElementById(`totalIncome-${i}`).textContent = (timeCost + data.foodTotal).toFixed(0);
+
+      localStorage.setItem(
+        `ps4-${i}`,
+        JSON.stringify({
+          startTime: data.timer ? data.startTime : null,
+          elapsedTime: currentElapsed,
+          foodTotal: data.foodTotal,
+        })
+      );
+    }
+
+    function startTimer(i) {
+      if (ps4Data[i].timer) return;
+      ps4Data[i].startTime = Date.now() - ps4Data[i].elapsedTime;
+      ps4Data[i].timer = setInterval(() => updateDisplay(i), 1000);
+    }
+
+    function stopTimer(i) {
+      if (!ps4Data[i].timer) return;
+      clearInterval(ps4Data[i].timer);
+      ps4Data[i].timer = null;
+      ps4Data[i].elapsedTime = Date.now() - ps4Data[i].startTime;
+      updateDisplay(i);
+    }
+
+    function resetTime(i) {
+      clearInterval(ps4Data[i].timer);
+      ps4Data[i].timer = null;
+      ps4Data[i].elapsedTime = 0;
+      ps4Data[i].startTime = null;
+      updateDisplay(i);
+    }
+
+    function addFood(i) {
+      const input = document.getElementById(`foodInput-${i}`);
+      const value = parseFloat(input.value);
+      if (!isNaN(value)) {
+        ps4Data[i].foodTotal += value;
+        input.value = "";
+        updateDisplay(i);
+      }
+    }
+
+    function resetFood(i) {
+      ps4Data[i].foodTotal = 0;
+      updateDisplay(i);
+    }
+
+    function saveDataToFile(i) {
+      const data = ps4Data[i];
+      let currentElapsed = data.timer ? Date.now() - data.startTime : data.elapsedTime;
+
+      let totalSeconds = Math.floor(currentElapsed / 1000);
+      let hours = Math.floor(totalSeconds / 3600);
+      let minutes = Math.floor((totalSeconds % 3600) / 60);
+      let seconds = totalSeconds % 60;
+
+      let hoursDecimal = currentElapsed / (1000 * 60 * 60);
+      let timeCost = Math.floor(hoursDecimal * ratePerHour);
+      let foodCost = data.foodTotal;
+      let totalIncome = timeCost + foodCost;
+
+      if (!ps4Files[i]) {
+        let now = new Date();
+        let filename = `PS4_${i}_session_${formatDateTime(now)}.txt`;
+        let header = `PS4 #${i} Session Log\n====================\n\n`;
+        ps4Files[i] = {
+          filename: filename,
+          content: header
+        };
+      }
+
+      let now = new Date();
+      let timestamp = now.toLocaleString();
+      let entry = `--- Entry on ${timestamp} ---\n` +
+        `Total Time Played: ${hours}h ${minutes}m ${seconds}s\n` +
+        `Money from Time: ${timeCost} IQD\n` +
+        `Total Food Cost: ${foodCost.toFixed(0)} IQD\n` +
+        `Grand Total Income: ${totalIncome.toFixed(0)} IQD\n\n`;
+
+      ps4Files[i].content += entry;
+      localStorage.setItem('ps4Files', JSON.stringify(ps4Files));
+
+      let blob = new Blob([ps4Files[i].content], { type: "text/plain" });
+      let url = URL.createObjectURL(blob);
+
+      let a = document.createElement("a");
+      a.href = url;
+      a.download = ps4Files[i].filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
